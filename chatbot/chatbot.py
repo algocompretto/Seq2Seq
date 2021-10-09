@@ -188,3 +188,98 @@ class Voc:
 
         for word in keep_words:
             self.addWord(word)
+
+
+MAX_LENGTH = 10  # Tamanho máximo de frase
+
+# Converte a string em Unicode para ASCII
+def unicodeToAscii(s):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+# Transforma para caixa baixa, remove espaços excessivos, e remove caracteres que não são letras
+def normalizeString(s):
+    s = unicodeToAscii(s.lower().strip())
+    s = re.sub(r"([.!?])", r" \1", s)
+    s = re.sub(r"[^a-zA-Z.!?]+", r" ",s)
+    s = re.sub(r"\s+", r" ", s).strip()
+    return s
+
+
+# Lê o par query/response e retorna o objeto VOC
+def readVocs(datafile, corpus_name):
+    print('Lendo linhas...')
+    # Lê o arquivo e separa em linhas
+    lines = open(datafile, enconding='utf-8').\
+        read().strip().split('\n')
+
+    # Divide cada linha em pares e normaliza
+    pairs = [[normalizeString(s) for s in l.split('\t')] for l in lines]
+    voc = Voc(corpus_name)
+    return voc, pairs
+
+
+# Retorna True se as sentenças estão dentro do limiar MAX_LENGTH
+def filterPair(p):
+    return len(p[0].split(' ')) < MAX_LENGTH and len(p[1].split(' ')) < MAX_LENGTH
+
+# Filtra os pares de acordo com a condição
+def filterPairs(pairs):
+    return [pair for pair in pairs if filterPair(pair)]
+
+# Usando as funções definidas para popular o objeto VOC e a lista de pares
+def loadPrepareData(corpus, corpus_name, datafile, save_dir):
+    print('Começando o preparo dos dados de treino...')
+    voc, pairs = readVocs(datafile, corpus_name)
+    print(f'Lendo {len(pairs)} pares.')
+    pairs = filterPairs(pairs)
+    print(f'Recortado para {len(pairs)} pares.')
+    print('Contando palavras...')
+    for pair in pairs:
+        voc.addSentence(pair[0])
+        voc.addSentence(pair[1])
+    print('Palavras contadas: ', voc.num_words)
+    return voc, pairs
+
+
+# Carrega e monta voc e pares
+save_dir = os.path.join('data', 'save')
+voc, pairs = loadPrepareData(CORPUS, CORPUS_FILE, datafile, save_dir)
+
+# Imprime alguns pares para validar
+print('\n pares:')
+for pair in pairs[:10]:
+    print(pair)
+
+
+# Vamos remover palavras raras do vocabulário
+MIN_COUNT = 3  # threshold
+
+def trimRareWords(voc, pairs, MIN_COUNT):
+    # Recorta as palavras
+    voc.trim(MIN_COUNT)
+    # Filtra os pares com as palavras removidas
+    keep_pairs = []
+    for pair in pairs:
+        input_sentence = pair[0]
+        output_sentence = pair[1]
+        keep_input = True
+        keep_output = True
+
+        # Confere a frase de entrada
+        for word in input_sentence.split(' '):
+            if word not in voc.word2index:
+                keep_output = False
+                break
+
+        if keep_input and keep_output:
+            keep_pairs.append(pair)
+
+        print(f'Do total de {len(pairs)} pares, foram recortados {len(keep_pairs)}. Cerca de {len(keep_pairs)/len(pairs):.4f}% do total')
+
+        return keep_pairs
+
+
+pairs = trimRareWords(voc, pairs, MIN_COUNT)
