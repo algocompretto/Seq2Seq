@@ -347,3 +347,53 @@ print("Tamanho:", lengths)
 print("Variável alvo:", target_variable)
 print("Máscara:", mask)
 print("Tamanho máximo:", max_target_len)
+
+
+# Modelo Seq2Seq
+# https://jeddy92.github.io/JEddy92.github.io/ts_seq2seq_intro/
+# O objetivo de um modelo seq2seq é pegar uma sequência de comprimento variável como
+# entrada e retornar uma sequência de comprimento variável como saída usando um modelo de tamanho fixo.
+# Uma RNN atua como encoder e a outra RNN atua como decoder.
+
+# Encoder
+class EncoderRNN(nn.Module):
+    """
+    O codificador RNN itera através da frase de entrada um token (por exemplo, palavra) de cada vez,
+    em cada etapa de tempo emitindo um vetor de "saída" e um vetor de "estado oculto".
+    O vetor de estado oculto é então passado para a próxima etapa de tempo, enquanto o vetor de saída é registrado.
+    O codificador transforma o contexto visto em cada ponto da sequência em um conjunto de pontos em um espaço de
+    alta dimensão, que o decodificador usará para gerar uma saída significativa para a tarefa dada.
+
+    https://colah.github.io/posts/2015-09-NN-Types-FP/
+
+    :param: input_seq = Lote de frases com formato (max_length, batch_size)
+    :param: input_lengths = Lista de comprimentos de frase correspondentes a cada frase do lote, formato = (batch_size)
+    :param: hidden = hidden state, formato = (n_layers * num_directions, batch_size, hidden_size)
+    :return: outputs = recursos de saída da última camada oculta do GRU (soma das saídas bidirecionais);
+    forma = (max_length, batch_size, hidden_size)
+    :return: hidden = estado oculto atualizado de GRU; forma = (n_layers * num_directions, batch_size, hidden_size)
+    """
+
+    def __init__(self, hidden_size, embedding, n_layers=1, dropout=0):
+        super(EncoderRNN, self).__init__()
+        self.n_layers = n_layers
+        self.hidden_size = hidden_size
+        self.embedding = embedding
+
+        self.gru = nn.GRU(hidden_size, hidden_size, n_layers,
+                          dropout=(0 if n_layers == 1 else dropout), bidirectional=True)
+
+    def forward(self, input_seq, input_lengths, hidden=None):
+        # Converta índices de palavras em embeddings
+        embedded = self.embedding(input_seq)
+        # Pacote de lote preenchido de sequências para o módulo RNN
+        packed = nn.utils.rnn.pack_padded_sequence(embedded, input_lengths)
+        # Passe para a frente através de GRU
+        outputs, hidden = self.gru(packed, hidden)
+        # Descompacte o preenchimento
+        outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs)
+        # Soma de saídas GRU bidirecionais
+        outputs = outputs[:, :, :self.hidden_size] + outputs[:, :, self.hidden_size:]
+        # Saída de retorno e estado oculto final
+        return outputs, hidden
+
