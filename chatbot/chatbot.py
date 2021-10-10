@@ -397,3 +397,24 @@ class EncoderRNN(nn.Module):
         # Saída de retorno e estado oculto final
         return outputs, hidden
 
+# Camada de atenção de Luong
+class Attn(nn.Module):
+    def __init__(self, method, hidden_size):
+        super(Attn, self).__init__()
+        pass
+
+    def dot_score(self, hidden, encoder_output):
+        return torch.sum(hidden * encoder_output, dim=2)
+
+    def general_score(self, hidden, encoder_output):
+        energy = self.attn(encoder_output)
+        return torch.sum(hidden * energy, dim=2)
+
+    def concat_score(self):
+        pass
+
+    def forward(self):
+        pass
+
+    return 0
+
