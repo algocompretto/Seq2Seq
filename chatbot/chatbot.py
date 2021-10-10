@@ -283,3 +283,67 @@ def trimRareWords(voc, pairs, MIN_COUNT):
 
 
 pairs = trimRareWords(voc, pairs, MIN_COUNT)
+
+
+# Preparing data for models
+# Convertemos as frases em tensores
+def indexesFromSentences(voc, sentence):
+    return [voc.word2index[word] for word in sentence.split(' ') + [EOS_token]]
+
+
+def zeroPadding(l, fillvalue=PAD_token):
+    return list(itertools.zip_longest(*l, fillvalue=fillvalue))
+
+def binaryMatrix(l, value=PAD_token):
+    m = []
+    for i, seq in enumerate(l):
+        m.append([])
+        for token in seq:
+            if token == PAD_token:
+                m[i].append(0)
+            else:
+                m[i].append(1)
+    return m
+
+
+# Retorna o tensor e os comprimentos da sequência de entrada preenchida
+def inputVar(l, voc):
+    indexes_batch = [indexesFromSentences(voc, sentence) for sentence in l]
+    lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
+    padList = zeroPadding(indexes_batch)
+    padVar = torch.LongTensor(padList)
+    return padVar, lengths
+
+
+# Retorna o tensor de sequência de destino preenchido, máscara de preenchimento e comprimento máximo do destino
+def outputVar(l, voc):
+    indexes_batch = [indexesFromSentences(voc, sentence) for sentence in l]
+    max_target_len = max([len(indexes) for indexes in indexes_batch])
+    padList = zeroPadding(indexes_batch)
+    mask = binaryMatrix(padList)
+    mask = torch.BoolTensor(mask)
+    padVar = torch.LongTensor(padList)
+    return padVar, mask, max_target_len
+
+
+def batch2TrainData(voc, pair_batch):
+    pair_batch.sort(key=lambda x:len(x[0].split(" ")), reverse=True)
+    input_batch, output_batch = [], []
+    for pair in pair_batch:
+        input_batch.append(pair[0])
+        output_batch.append(pair[1])
+    inp, lengths = inputVar(input_batch, voc)
+    output, mask, max_target_len = outputVar(output_batch, voc)
+    return inp, lengths, output, mask, max_target_len
+
+
+# Exemplo para validação
+small_batch_size = 5
+batches = batch2TrainData(voc, [random.choice(pairs) for _ in range(small_batch_size)])
+input_variable , lengths, target_variable, mask, max_target_len = batches
+
+print("Variável de entrada:", input_variable)
+print("Tamanho:", lengths)
+print("Variável alvo:", target_variable)
+print("Máscara:", mask)
+print("Tamanho máximo:", max_target_len)
