@@ -437,4 +437,49 @@ class Attn(nn.Module):
         return F.softmax(attn_energies, dim=1).unsqueeze(1)
 
 
+class LuongAttnDecoderRNN(nn.Module):
+    def __init__(self, attn_model, embedding, hidden_size, output_size,
+                 n_layers=1, dropout=0.1):
+        super(LuongAttnDecoderRNN, self).__init__()
 
+        self.attn_model = attn_model
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.n_layers = n_layers
+        self.droput = dropout
+
+        # Define layers
+        self.embedding = embedding
+        self.embedding_dropout = nn.Dropout(dropout)
+        self.gru = nn.GRU(hidden_size, hidden_size, n_layers,
+                          dropout=(0 if n_layers==1 else dropout))
+        self.concat = nn.Linear(hidden_size*2, hidden_size)
+        self.out = nn.Linear(hidden_size, output_size)
+
+        self.attn = Attn(attn_model, hidden_size)
+
+
+    def forward(self, input_step, last_hidden, encoder_outputs):
+        # Uma palavra por vez
+        # Embedding da palavra atual
+
+        embedded = self.embedding(input_step)
+        embedded = self.embedding_dropout(embedded, last_hidden)
+
+        rnn_output, hidden = self.gru(embedded, last_hidden)
+        # Calcula os pesos da atenção
+        attn_weights = self.attn(rnn_output, encoder_outputs)
+        # Multiplica a energia aos outputs do encoder
+        context = attn_weights.bmm(encoder_outputs.transpose(0, 1))
+        # Concatena as energias e o output do GRU
+        rnn_output = rnn_output.squeeze(0)
+        context = context.squeeze(1)
+        concat_input = torch.cat((rnn_output, context), 1)
+        concat_output = torch.tanh(self.concat(concat_input))
+
+        # Prevê próxima palavra usando equação de Luong
+        output = self.out(concat_output)
+        output = F.softmax(output, dim=1)
+
+        # Retorna output e o estado final
+        return output, hidden
