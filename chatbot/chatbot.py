@@ -493,27 +493,143 @@ def maskNLLLoss(inp, target, mask):
     loss = loss.to(DEVICE)
     return loss, nTotal.item()
 
+# Training iteration
+def train(input_variable, lengths, target_variable, mask,
+          max_target_len, encoder, decoder, embedding, encoder_optimizer, decoder_optimizer,
+          batch_size, clip, max_length=MAX_LENGTH):
+    """
+    1. Passe para frente todo o lote de entrada através do codificador.
+    2. Inicialize as entradas do decodificador como SOS_token e o estado oculto como o estado oculto final do codificador.
+    3. Encaminhe a sequência de lote de entrada por meio do decodificador, uma etapa de cada vez.
+    4. Se o teacher forçar: defina a próxima entrada do decodificador como o alvo atual; else: define a próxima entrada do decodificador como saída do decodificador atual.
+    5. Calcule e acumule perdas.
+    6. Execute a retropropagação.
+    7. Clip gradientes.
+    8. Atualize os parâmetros do codificador e do modelo do decodificador.
+    """
+
+    # Zera gradientes
+    encoder_optimizer.zero_grad()
+    decoder_optimizer.zero_grad()
+
+    # Envia para device
+    input_variable = input_variable.to(DEVICE)
+    target_variable = target_variable.to(DEVICE)
+    mask = mask.to(DEVICE)
+    # Lengths for rnn packing should always be on the cpu
+    lengths = lengths.to("cpu")
+
+    # Inicializa variáveis
+    loss = 0
+    print_losses = []
+    n_totals = 0
+
+    # Manda pro encoder
+    encoder_outputs, encoder_hidden = encoder(input_variable, lengths)
+
+    # Crie a entrada do decodificador inicial (comece com tokens SOS para cada frase)
+    decoder_input = torch.LongTensor([[SOS_token for _ in range(batch_size)]])
+    decoder_input = decoder_input.to(DEVICE)
+
+    # Defina o estado oculto do decodificador inicial para o estado oculto final do codificador
+    decoder_hidden = encoder_hidden[:decoder.n_layers]
+
+    # Determine se estamos usando o teacher forcing esta iteração
+    use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
+
+    # Encaminhar lote de sequências por meio do decodificador, uma etapa de cada vez
+    if use_teacher_forcing:
+        for t in range(max_target_len):
+            decoder_output, decoder_hidden = decoder(
+                decoder_input, decoder_hidden, encoder_outputs
+            )
+            # Teacher forcing: próximo input é a target variable
+            decoder_input = target_variable[t].view(1, -1)
+            # Calcula e acumula loss
+            mask_loss, nTotal = maskNLLLoss(decoder_output, target_variable[t], mask[t])
+            loss += mask_loss
+            print_losses.append(mask_loss.item() * nTotal)
+            n_totals += nTotal
+    else:
+        for t in range(max_target_len):
+            decoder_output, decoder_hidden = decoder(
+                decoder_input, decoder_hidden, encoder_outputs
+            )
+            # Sem teacher forcing: Próximo input é o output do próprio decoder
+            _, topi = decoder_output.topk(1)
+            decoder_input = torch.LongTensor([[topi[i][0] for i in range(batch_size)]])
+            decoder_input = decoder_input.to(DEVICE)
+            # Calcula e acumula loss
+            mask_loss, nTotal = maskNLLLoss(decoder_output, target_variable[t], mask[t])
+            loss += mask_loss
+            print_losses.append(mask_loss.item() * nTotal)
+            n_totals += nTotal
+
+    # Faz backpropagation
+    loss.backward()
+
+    # Gradientes são modificados inplace
+    _ = nn.utils.clip_grad_norm_(encoder.parameters(), clip)
+    _ = nn.utils.clip_grad_norm_(decoder.parameters(), clip)
+
+    # Ajusta os pesos
+    encoder_optimizer.step()
+    decoder_optimizer.step()
+
+    return sum(print_losses) / n_totals
+
+def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer,
+               decoder_optimizer, embedding, encoder_n_layers, decoder_n_layers,
+               save_dir, n_iteration, batch_size, print_every, save_every, clip, corpus_name, loadFilename):
+    """
+    Finalmente, é hora de amarrar todo o procedimento de treinamento aos dados.
+    A função trainIters é responsável por executar n_iterações de treinamento dados os modelos,
+    otimizadores, dados, etc. aprovados. Esta função é bastante autoexplicativa,
+    pois fizemos o levantamento de peso com a função trem.
+    """
 
 
+    # Carrega lotes para cada iteração
+    training_batches = [batch2TrainData(voc, [random.choice(pairs) for _ in range(batch_size)])
+                      for _ in range(n_iteration)]
 
+    # Inicializações
+    print('Inicializando ...')
+    start_iteration = 1
+    print_loss = 0
+    if loadFilename:
+        start_iteration = checkpoint['iteration'] + 1
 
+    # Loop de treino
+    print("Treinando a rede neural...")
+    for iteration in range(start_iteration, n_iteration + 1):
+        training_batch = training_batches[iteration - 1]
+        # Extract fields from batch
+        input_variable, lengths, target_variable, mask, max_target_len = training_batch
 
+        # Percorre a iteração do treino
+        loss = train(input_variable, lengths, target_variable, mask, max_target_len, encoder,
+                     decoder, embedding, encoder_optimizer, decoder_optimizer, batch_size, clip)
+        print_loss += loss
 
+        # Imprime o progresso
+        if iteration % print_every == 0:
+            print_loss_avg = print_loss / print_every
+            print("Iteração: {}; Porcentagem completa: {:.1f}%; Função de perda: {:.4f}".format(iteration, iteration / n_iteration * 100, print_loss_avg))
+            print_loss = 0
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        # Save checkpoint
+        if (iteration % save_every == 0):
+            directory = os.path.join(save_dir, model_name, corpus_name, '{}-{}_{}'.format(encoder_n_layers, decoder_n_layers, hidden_size))
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            torch.save({
+                'iteration': iteration,
+                'en': encoder.state_dict(),
+                'de': decoder.state_dict(),
+                'en_opt': encoder_optimizer.state_dict(),
+                'de_opt': decoder_optimizer.state_dict(),
+                'loss': loss,
+                'voc_dict': voc.__dict__,
+                'embedding': embedding.state_dict()
+            }, os.path.join(directory, '{}_{}.tar'.format(iteration, 'checkpoint')))
