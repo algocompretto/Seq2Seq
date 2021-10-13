@@ -20,7 +20,7 @@ import math
 
 CUDA = torch.cuda.is_available()
 DEVICE = torch.device('cuda' if CUDA else 'cpu')
-CORPUS_FILE = "cornell movie-dialogs corpus"
+CORPUS_FILE = ""
 CORPUS = os.path.join('data', CORPUS_FILE)
 
 
