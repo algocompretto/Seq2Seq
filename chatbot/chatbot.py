@@ -633,3 +633,37 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer,
                 'voc_dict': voc.__dict__,
                 'embedding': embedding.state_dict()
             }, os.path.join(directory, '{}_{}.tar'.format(iteration, 'checkpoint')))
+
+# Greedy Decoding, para cada time step, escolhemos o output com maior
+# valor softmax
+
+class GreedySearchDecoder(nn.Module):
+    def __init__(self, encoder, decoder):
+        super(GreedySearchDecoder, self).__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self, input_seq, input_length, max_length):
+        # Forward da entrada
+        encoder_outputs, encoder_hidden = self.encoder(input_seq, input_length)
+        # Prepara a última hidden layer do encoder para ser a primeira hidden entrada no decoder
+        decoder_hidden = encoder_hidden[:decoder.n_layers]
+        decoder_input = torch.ones(1, 1, device=DEVICE, dtype=torch.long) * SOS_token
+        # Inicializa tensores para registrarem as palavras decodadas
+        all_tokens = torch.zeros([0], device=DEVICE, dtype=torch.long)
+        all_scores = torch.zeros([0], device=DEVICE)
+
+        for _ in range(max_length):
+            decoder_output, decoder_hidden = self.decoder(decoder_input,
+                                                          decoder_hidden,
+                                                          encoder_outputs)
+
+            decoder_scores, decoder_input = torch.max(decoder_output, dim=1)
+            all_tokens = torch.cat((all_tokens, decoder_input), dim=0)
+            all_scores = torch.cat((all_scores, decoder_scores), dim=0)
+
+            # Adiciona mais uma dimensão para próximo token
+            decoder_input = torch.unsqueeze(decoder_input, 0)
+
+        return all_tokens, all_scores
+
