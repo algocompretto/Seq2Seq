@@ -667,3 +667,40 @@ class GreedySearchDecoder(nn.Module):
 
         return all_tokens, all_scores
 
+
+# Avaliação do texto
+def evaluate(encoder, decoder, searcher, voc, sentence, max_length=MAX_LENGTH):
+    # Formata a entrada
+    # words -> indexes
+    indexes_batch = [indexesFromSentences(voc, sentence)]
+    lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
+    # Transpõe as dimensões
+    input_batch = torch.LongTensor(indexes_batch).transpose(0, 1)
+    input_batch = input_batch.to(DEVICE)
+    lengths = lengths.to('cpu')
+
+    tokens, scores = searcher(input_batch, lengths, max_length)
+
+    # indexes -> words
+    decoded_words = [voc.index2word[token.item()] for token in tokens]
+
+    return decoded_words
+
+
+def evaluateInput(encoder, decoder, searcher, voc):
+    input_sentence = ''
+    while True:
+        try:
+            input_sentence = input('> ')
+            if input_sentence == 'q' or input_sentence == 'SAIR': break
+
+            input_sentence = normalizeString(input_sentence)
+
+            output_words = evaluate(encoder, decoder, searcher, voc, input_sentence)
+
+            output_words[:] = [x for x in output_words if not (x == 'EOS' or x == 'PAD')]
+            print('Skynet:', " ".join(output_words))
+
+        except KeyError:
+            print('Erro: Encontrou palavra inesperada.')
+
