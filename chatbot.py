@@ -20,7 +20,7 @@ from torch import optim
 CUDA = torch.cuda.is_available()
 DEVICE = torch.device('cuda' if CUDA else 'cpu')
 CORPUS_FILE = ""
-CORPUS = os.path.join('data', CORPUS_FILE)
+CORPUS = os.path.join("data", CORPUS_FILE)
 
 
 def printLines(file, n=10):
@@ -63,7 +63,7 @@ def loadConversations(fileName, lines, fields):
     :return:
     """
     conversations = []
-    with open(fileName, 'r', encoding='iso-8559-1') as f:
+    with open(fileName, 'r', encoding='iso-8859-1') as f:
         for line in f:
             values = line.split(" +++$+++ ")
             # Extrai campos
@@ -76,7 +76,7 @@ def loadConversations(fileName, lines, fields):
             lineIds = utterance_id_pattern.findall(convObj['utteranceIDs'])
 
             # Reajusta linhas
-            convObj['lines'] = {}
+            convObj['lines'] = []
             for lineId in lineIds:
                 convObj['lines'].append(lines[lineId])
             conversations.append(convObj)
@@ -84,17 +84,12 @@ def loadConversations(fileName, lines, fields):
 
 
 def extractsSentencePairs(conversations):
-    """
-    Extrai pares de frases a partir das `conversations`
-    :param conversations:
-    :return:
-    """
     qa_pairs = []
     for conversation in conversations:
         # Itera sobre todas as linhas da conversação
-        for i in range(len(conversation['lines']) - 1):
-            inputLine = conversation['lines'][i]['text'].strip()
-            targetLine = conversation['lines'][i+1]['text'].strip()
+        for i in range(len(conversation["lines"]) - 1):
+            inputLine = conversation["lines"][i]["text"].strip()
+            targetLine = conversation["lines"][i + 1]["text"].strip()
             # Filtra amostras erradas
             if inputLine and targetLine:
                 qa_pairs.append([inputLine, targetLine])
@@ -114,8 +109,10 @@ MOVIE_CONVERSATIONS_FIELDS = ['character1ID', 'character2ID', 'movieID', 'uttera
 
 # Carrega linhas e processa conversas
 print('\nProcessando corpus...')
-lines = loadLines(os.path.join(CORPUS, 'movie_conversations.txt'),
-                  lines, MOVIE_CONVERSATIONS_FIELDS)
+lines = loadLines(os.path.join(CORPUS, 'movie_lines.txt'), MOVIE_LINES_FIELDS)
+print("\nCarregando conversas...")
+conversations = loadConversations(os.path.join(CORPUS, "movie_conversations.txt"),
+                                  lines, MOVIE_CONVERSATIONS_FIELDS)
 
 # Escreve um arquivo .csv
 print('\nEscrevendo o novo arquivo formatado...')
@@ -211,7 +208,7 @@ def normalizeString(s):
 def readVocs(datafile, corpus_name):
     print('Lendo linhas...')
     # Lê o arquivo e separa em linhas
-    lines = open(datafile, enconding='utf-8').\
+    lines = open(datafile, encoding='utf-8').\
         read().strip().split('\n')
 
     # Divide cada linha em pares e normaliza
@@ -287,7 +284,7 @@ pairs = trimRareWords(voc, pairs, MIN_COUNT)
 # Preparing data for models
 # Convertemos as frases em tensores
 def indexesFromSentences(voc, sentence):
-    return [voc.word2index[word] for word in sentence.split(' ') + [EOS_token]]
+    return [voc.word2index[word] for word in sentence.split(' ')] + [EOS_token]
 
 
 def zeroPadding(l, fillvalue=PAD_token):
@@ -463,7 +460,7 @@ class LuongAttnDecoderRNN(nn.Module):
         # Embedding da palavra atual
 
         embedded = self.embedding(input_step)
-        embedded = self.embedding_dropout(embedded, last_hidden)
+        embedded = self.embedding_dropout(embedded)
 
         rnn_output, hidden = self.gru(embedded, last_hidden)
         # Calcula os pesos da atenção
@@ -789,7 +786,7 @@ for state in decoder_optimizer.state.values():
 print("Começando o treinamento do modelo!")
 trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_optimizer,
            embedding, encoder_n_layers, decoder_n_layers, save_dir, n_iteration, batch_size,
-           print_every, save_every, clip, CORPUS, loadFilename)
+           print_every, save_every, clip, CORPUS_FILE, loadFilename)
 
 
 # Modo de avaliação
