@@ -1,2 +1,5 @@
-- adicionar explicação sobre modelos seq2seq
-- explicar o mecanismo de atenção Luong
+# Modelos Seq2Seq
+
+
+
+# Mecanismo de Atenção de Luong
