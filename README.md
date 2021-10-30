@@ -17,9 +17,11 @@ De modo geral, um modelo encoder-decoder pode ser imaginado como dois blocos:
 
 - O decoder lê o vetor de contexto e tenta prever a frase token por token.
 
-Referências:
-https://medium.com/analytics-vidhya/encoder-decoder-seq2seq-models-clearly-explained-c34186fbf49b
-https://www.guru99.com/seq2seq-model.html
-https://towardsdatascience.com/day-1-2-attention-seq2seq-models-65df3f49e263#:~:text=A%20Seq2Seq%20model%20is%20a,outputs%20another%20sequence%20of%20items.&text=In%20the%20case%20of%20Neural,the%20translated%20series%20of%20words.
-https://towardsdatascience.com/sequence-to-sequence-model-introduction-and-concepts-44d9b41cd42d
+### Entendendo a arquitetura
+A arquitetura do encoder-decoder é relativamente nova, foi adotado pelo sistema de tradução da Google em 2016 - e é ele que forma a base de modelos mais complexos como modelos de atenção, modelos GTP, Transformers e BERT.
 
+
+
+
+
+Referências:
