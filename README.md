@@ -17,11 +17,11 @@ De modo geral, um modelo encoder-decoder pode ser imaginado como dois blocos:
 
 - O decoder lê o vetor de contexto e tenta prever a frase token por token.
 
-### Entendendo a arquitetura
-A arquitetura do encoder-decoder é relativamente nova, foi adotado pelo sistema de tradução da Google em 2016 - e é ele que forma a base de modelos mais complexos como modelos de atenção, modelos GTP, Transformers e BERT.
+### Problemas de modelagem de sequências
+Problemas de modelagem de sequências se referem a problemas no qual tanto a entrada quanto a saída, são sequências de dados ~~duuuuhhhhh~~ . Considere um simples problema de crítica de filme - nesse caso, a entrada é uma sequência de palavras e a saída é algum número entre 0 e 1. Usando redes neurais profundas comuns, teríamos que codificar o nosso texto de entrada como um vetor usando _Word2Vec_, _BOW_, etc. Contudo, usando esses métodos, a sequência de palavras não é preservada, logo o valor semântico é perdido.
+
+Assim, para resolver esse problema, as RNNs se mostram mais eficiente. Em essência, para qualquer entrada X = (x₀, x₁, x₂, ... xₜ) com um número variável de recursos, a cada passo de tempo, uma célula RNN pega um item / token xₜ como entrada e produz uma saída hₜ enquanto passa alguns informações para a próxima etapa de tempo. Essas saídas podem ser usadas de acordo com o problema em questão.
 
 
-
-
-
-Referências:
+### Referências:
+[Sequence to Sequence Learning with Neural Networks by Ilya Sutskever, et al](https://arxiv.org/abs/1409.3215)
